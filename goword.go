@@ -6,6 +6,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"strings"
 )
@@ -58,6 +59,50 @@ func Parse(doc string) (WordDocument, error) {
 		}
 	}
 	return docx, nil
+}
+
+func openWordFileFromReader(reader io.ReaderAt, size int64) (string, error) {
+
+	r, err := zip.NewReader(reader, size)
+	if err != nil {
+		return "", err
+	}
+
+	// Iterate through the files in the archive,
+	// find document.xml
+	for _, f := range r.File {
+
+		//fmt.Printf("Contents of %s:\n", f.Name)
+		rc, err := f.Open()
+		if err != nil {
+			return "", err
+		}
+		if f.Name == "word/document.xml" {
+			doc, err := ioutil.ReadAll(rc)
+			if err != nil {
+				return "", err
+			}
+			return fmt.Sprintf("%s", doc), nil
+		}
+		rc.Close()
+	}
+
+	return "", nil
+}
+
+func ParseTextFromReader(reader io.ReaderAt, size int64) (string, error) {
+
+	doc, err := openWordFileFromReader(reader, size)
+	if err != nil {
+		return "", err
+	}
+
+	docx, err := Parse(doc)
+	if err != nil {
+		return "", errors.New(fmt.Sprintf("Error parsing %s", err))
+	}
+
+	return docx.AsText(), nil
 }
 
 func openWordFile(filename string) (string, error) {
